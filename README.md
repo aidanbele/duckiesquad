@@ -1,5 +1,12 @@
 # duckiesquad
 
+### manual control on mac
+
+Should be able to control the robot using this command: (no UI)
+
+```bash
+dts duckiebot keyboard_control hostname --cli
+```
 
 ### duckiebot-ros-test
 
