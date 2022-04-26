@@ -13,7 +13,7 @@ dt-launchfile-init
 # NOTE: Use `dt-exec COMMAND` to run the main process (blocking process)
 
 # launching app
-roslaunch my_package multiple_nodes.launch
+roslaunch my_package basic_nodes.launch
 
 
 # ----------------------------------------------------------------------------
