@@ -4,8 +4,8 @@ import os
 import random
 import rospy
 from duckietown.dtros import DTROS, NodeType
-#from duckietown_msgs.msg import LEDPattern
-#from duckietown_msgs.srv import SetCustomLEDPattern
+from duckietown_msgs.msg import LEDPattern
+from duckietown_msgs.srv import SetCustomLEDPattern
 from duckietown_msgs.msg import WheelsCmdStamped
 
 class LedControlNode(DTROS):
@@ -14,7 +14,7 @@ class LedControlNode(DTROS):
         # initialize the DTROS parent class
         super(LedControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
         
-        self.veh_name = rospy.get_namespace().strip("/")
+        self.veh_name = os.environ['VEHICLE_NAME']
 
 
         #Setup the wheel publisher
@@ -26,12 +26,11 @@ class LedControlNode(DTROS):
         # change colors randomly every second
         rate = rospy.Rate(1) # 1Hz
         while not rospy.is_shutdown():
-            #self.set_LEDs()
-
+            self.set_LEDs()
             self.wheels.publish(self.createWheelCmd(random.uniform(0.0, 0.5),random.uniform(0.0, 0.5)))
             rate.sleep()
 
-    """
+    
     def set_LEDs(self, color_list=None):
         led_service = f"/{self.veh_name}/led_emitter_node/set_custom_pattern"
         # rospy.wait_for_service(led_service)
@@ -54,7 +53,7 @@ class LedControlNode(DTROS):
         # color list does not include "switchedoff" so we are a real party
         color_list = ["green", "red", "blue", "white", "yellow", "purple", "cyan", "pink"]
         return random.choices(color_list, k = 5)
-    """
+    
 
     def createWheelCmd(self,left,right):
         wheels_cmd_msg = WheelsCmdStamped()
@@ -73,7 +72,7 @@ class LedControlNode(DTROS):
         # THE NODE IS STOPPED
 
         leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
-        # self.set_LEDs(leds_off)
+        self.set_LEDs(leds_off)
 
         self.wheels.publish(self.createWheelCmd(0.0,0.0))
 
