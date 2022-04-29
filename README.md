@@ -1,5 +1,14 @@
 # duckiesquad
 
+
+## duckiebot-mother
+
+Duckiebot-mother acts as the leader, and wanders around
+
+## duckiebot-daughter
+
+Duckiebot-daughter follows the mother around. It would be cool if when the daughter loses the mother it will attempt to find her
+
 ### manual control on mac
 
 Should be able to control the robot using this command: (no UI)
