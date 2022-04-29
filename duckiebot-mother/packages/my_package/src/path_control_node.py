@@ -24,7 +24,8 @@ def velocityPublisher(host):
 
     # Publish at defined rate until user keyboard interrupt
     print("CTRL + C to stop motors.")
-    while not rospy.is_shutdown():
+    my_flag = rospy.is_shutdown()
+    while not my_flag:
         try:
             rospy.loginfo("Publshing Velocities")
             msg.header.stamp = rospy.Time.now()
@@ -32,6 +33,7 @@ def velocityPublisher(host):
             msg.omega = 0.0
             pub.publish(msg)
             rate.sleep()
+            my_flag = True
         except rospy.ROSInterruptException:
             rospy.loginfo("Shutdown Initiated: Stopping motors")
             msg.header.stamp = rospy.Time.now()
