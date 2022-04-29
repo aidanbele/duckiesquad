@@ -1,7 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Acquired from https://github.com/ethanmusser/velocity-controller/blob/2515e89893181e57a49111df2f85861f4dca5477/src/vel_func_node/scripts/vel_func_node_back.py
 import rospy
 import sys
+import os
 
 from duckietown_msgs.msg import Twist2DStamped
 
@@ -61,7 +62,7 @@ if __name__ == '__main__':
         rospy.loginfo(
             "Vehicle name not passed as a command line argument, expected to be passed as ROS variable")
         try:
-            hostname = rospy.get_param("~veh")
+            hostname = os.environ['VEHICLE_NAME']
         except:
             raise Exception("ROS parameter '~veh' not found!")
     else:

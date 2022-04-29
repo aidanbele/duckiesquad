@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Acquired from https://github.com/Duckietown-NCTU/Software/blob/59a55c5d7453fc2c45c1686eb6958bfa0d5d8ab9/catkin_ws/src/dagu_car/script/dagu_differential_drive_test.py
 
 import rospy
