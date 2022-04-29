@@ -19,7 +19,7 @@ def velocityPublisher(host):
     # rospy.on_shutdown(shutdown_hook)
 
     # Define publish rate
-    rate = rospy.Rate(10)  # 10hz
+    rate = rospy.Rate(1)  # 1hz
 
     # Publish at defined rate until user keyboard interrupt
     print("CTRL + C to stop motors.")
