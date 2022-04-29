@@ -1,79 +1,58 @@
 #!/usr/bin/env python3
-# Acquired from https://github.com/ethanmusser/velocity-controller/blob/2515e89893181e57a49111df2f85861f4dca5477/src/vel_func_node/scripts/vel_func_node_back.py
-import rospy
-import sys
-import os
 
+import os
+import rospy
+from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import Twist2DStamped
 
+class LedControlNode(DTROS):
 
-def velocityPublisher(host):
-    # Initialize velocity publisher
-    # pub = rospy.Publisher('/'+host+'/vel_func_node/car_cmd',Twist2DStamped,queue_size=1)
-    pub = rospy.Publisher('/'+host+'/joy_mapper_node/car_cmd',
-                          Twist2DStamped, queue_size=1)
-    
-    # Initialize message
-    msg = Twist2DStamped()
+    def __init__(self, node_name):
+        # initialize the DTROS parent class
+        super(LedControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
+        
+        self.veh_name = os.environ['VEHICLE_NAME']
 
-    # Define shutdown hook
-    # rospy.on_shutdown(shutdown_hook)
+        #Setup the wheel publisher
+        car_topic=f"/{ self.veh_name }/joy_mapper_node/car_cmd"
+        self.car = rospy.Publisher(car_topic, Twist2DStamped, queue_size=1)
+        
 
-    # Define publish rate
-    rate = rospy.Rate(1)  # 1hz
+    def run(self):
 
-    # Publish at defined rate until user keyboard interrupt
-    print("CTRL + C to stop motors.")
-    my_flag = rospy.is_shutdown()
-    while not my_flag:
-        try:
-            rospy.loginfo("Publshing Velocities")
-            msg.header.stamp = rospy.Time.now()
-            msg.v = 0.1
-            msg.omega = 0.0
-            pub.publish(msg)
-            rate.sleep()
-            my_flag = True
-        except rospy.ROSInterruptException:
-            rospy.loginfo("Shutdown Initiated: Stopping motors")
-            msg.header.stamp = rospy.Time.now()
-            msg.v = 0.0
-            msg.omega = 0.0
-            pub.publish(msg)
-            rospy.sleep(1)
-            break
+        cmds = [[0.5, 0], [0.5, 1], [0.5, 1], [0.5, 1]]
 
-# def shutdown_hook():
-#     pub = rospy.Publisher('/duckiebot02/joy_mapper_node/car_cmd',Twist2DStamped,queue_size=1)
-#     print("Shutdown Initiated: Stopping motors.")
-#     msg = Twist2DStamped()
-#     msg.header.stamp = rospy.Time.now()
-#     msg.v = 0.0
-#     msg.omega = 0.0
-#     pub.publish(msg)
-#     rospy.sleep(1)
+        rate = rospy.Rate(0.2) # 1Hz
+        while not rospy.is_shutdown():
+            for cmd in cmds:
+                if not rospy.is_shutdown():
+                    self.car.publish(self.createCarCmd(cmd[0], cmd[1]))
+                    rate.sleep()
+            
+
+
+    def createCarCmd(self,v,o):
+        msg = Twist2DStamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.v = v
+        msg.omega = o
+        return msg
+
+
+    def onShutdown(self):
+        """Shutdown procedure.
+        Publishes a zero velocity command at shutdown."""
+
+        self.car.publish(self.createCarCmd(0, 0))
+
+        super(LedControlNode, self).onShutdown()
 
 
 if __name__ == '__main__':
-    # Initialize node
-    rospy.init_node('vel_func_node', anonymous=False)
-    rospy.loginfo("Starting node %s" % rospy.get_name())
-
-    # Set hostname based on optional vehicle name
-    if len(sys.argv) != 2:
-        rospy.loginfo(
-            "Vehicle name not passed as a command line argument, expected to be passed as ROS variable")
-        try:
-            hostname = os.environ['VEHICLE_NAME']
-        except:
-            raise Exception("ROS parameter '~veh' not found!")
-    else:
-        hostname = sys.argv[1]
-    rospy.loginfo('Hostname: %s' % hostname)
-
-    # Call velocityPublisher
-    try:
-        velocityPublisher(host=hostname)
-    except rospy.ROSInterruptException:
-        raise Exception(
-            "Error encountered when attempting to start vel_func_node velocityPublisher!")
+    # create the node
+    node = LedControlNode(node_name='led_control_node')
+    # run node
+    node.run()
+    node.onShutdown()
+    # keep spinning
+    rospy.spin()
