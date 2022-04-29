@@ -83,5 +83,6 @@ if __name__ == '__main__':
     node = LedControlNode(node_name='led_control_node')
     # run node
     node.run()
+    node.onShutdown()
     # keep spinning
     rospy.spin()

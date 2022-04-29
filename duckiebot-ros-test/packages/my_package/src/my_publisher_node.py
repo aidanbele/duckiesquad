@@ -22,10 +22,15 @@ class MyPublisherNode(DTROS):
             self.pub.publish(message)
             rate.sleep()
 
+    def onShutdown(self):
+        rospy.loginfo("Shutting down from publisher")
+        super(MyPublisherNode, self).onShutdown()
+
 if __name__ == '__main__':
     # create the node
     node = MyPublisherNode(node_name='my_publisher_node')
     # run node
     node.run()
+    node.onShutdown()
     # keep spinning
     rospy.spin()
