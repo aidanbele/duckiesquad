@@ -1,88 +1,76 @@
-#!/usr/bin/env python3
-
-import os
-import random
+#!/usr/bin/env python
+# Acquired from https://github.com/ethanmusser/velocity-controller/blob/2515e89893181e57a49111df2f85861f4dca5477/src/vel_func_node/scripts/vel_func_node_back.py
 import rospy
-from duckietown.dtros import DTROS, NodeType
-from duckietown_msgs.msg import LEDPattern
-from duckietown_msgs.srv import SetCustomLEDPattern
-from duckietown_msgs.msg import WheelsCmdStamped
+import sys
 
-class LedControlNode(DTROS):
-
-    def __init__(self, node_name):
-        # initialize the DTROS parent class
-        super(LedControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
-        
-        self.veh_name = os.environ['VEHICLE_NAME']
+from duckietown_msgs.msg import Twist2DStamped
 
 
-        #Setup the wheel publisher
-        wheel_topic=f"/{self.veh_name}/wheels_driver_node/wheels_cmd"
-        self.wheels = rospy.Publisher(wheel_topic, WheelsCmdStamped, queue_size=1)
-        
-
-    def run(self):
-        # change colors randomly every second
-        rate = rospy.Rate(1) # 1Hz
-        while not rospy.is_shutdown():
-            self.set_LEDs()
-            self.wheels.publish(self.createWheelCmd(random.uniform(0.0, 0.5),random.uniform(0.0, 0.5)))
-            rate.sleep()
-
+def velocityPublisher(host):
+    # Initialize velocity publisher
+    # pub = rospy.Publisher('/'+host+'/vel_func_node/car_cmd',Twist2DStamped,queue_size=1)
+    pub = rospy.Publisher('/'+host+'/joy_mapper_node/car_cmd',
+                          Twist2DStamped, queue_size=1)
     
-    def set_LEDs(self, color_list=None):
-        led_service = f"/{self.veh_name}/led_emitter_node/set_custom_pattern"
-        # rospy.wait_for_service(led_service)
+    # Initialize message
+    msg = Twist2DStamped()
 
-        if color_list == None:
-            color_list = self.random_color_list()
+    # Define shutdown hook
+    # rospy.on_shutdown(shutdown_hook)
+
+    # Define publish rate
+    rate = rospy.Rate(10)  # 10hz
+
+    # Publish at defined rate until user keyboard interrupt
+    print("CTRL + C to stop motors.")
+    while not rospy.is_shutdown():
         try:
-            service = rospy.ServiceProxy(led_service, SetCustomLEDPattern)
-            msg = LEDPattern()
-            msg.color_list = color_list
-            msg.color_mask = [1, 1, 1, 1, 1]
-            msg.frequency = 0
-            msg.frequency_mask = [0, 0, 0, 0, 0]
-            response = service(msg)
-            rospy.loginfo(response)
-        except rospy.ServiceException as e:
-            print (f"Service call failed: {e}")
+            rospy.loginfo("Publshing Velocities")
+            msg.header.stamp = rospy.Time.now()
+            msg.v = 0.1
+            msg.omega = 0.0
+            pub.publish(msg)
+            rate.sleep()
+        except rospy.ROSInterruptException:
+            rospy.loginfo("Shutdown Initiated: Stopping motors")
+            msg.header.stamp = rospy.Time.now()
+            msg.v = 0.0
+            msg.omega = 0.0
+            pub.publish(msg)
+            rospy.sleep(1)
+            break
 
-    def random_color_list(self):
-        # color list does not include "switchedoff" so we are a real party
-        color_list = ["green", "red", "blue", "white", "yellow", "purple", "cyan", "pink"]
-        return random.choices(color_list, k = 5)
-    
+# def shutdown_hook():
+#     pub = rospy.Publisher('/duckiebot02/joy_mapper_node/car_cmd',Twist2DStamped,queue_size=1)
+#     print("Shutdown Initiated: Stopping motors.")
+#     msg = Twist2DStamped()
+#     msg.header.stamp = rospy.Time.now()
+#     msg.v = 0.0
+#     msg.omega = 0.0
+#     pub.publish(msg)
+#     rospy.sleep(1)
 
-    def createWheelCmd(self,left,right):
-        wheels_cmd_msg = WheelsCmdStamped()
-        # spin right unless servoing or centered
-        wheels_cmd_msg.header.stamp = rospy.Time.now()
-        wheels_cmd_msg.vel_left = left
-        wheels_cmd_msg.vel_right = right
-        return wheels_cmd_msg
-
-    def onShutdown(self):
-        """Shutdown procedure.
-        Publishes a zero velocity command at shutdown."""
-
-        # MAKE SURE THAT THE LAST WHEEL COMMAND YOU PUBLISH IS ZERO,
-        # OTHERWISE YOUR DUCKIEBOT WILL CONTINUE MOVING AFTER
-        # THE NODE IS STOPPED
-
-        leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
-        self.set_LEDs(leds_off)
-
-        self.wheels.publish(self.createWheelCmd(0.0,0.0))
-
-        super(LedControlNode, self).onShutdown()
 
 if __name__ == '__main__':
-    # create the node
-    node = LedControlNode(node_name='led_control_node')
-    # run node
-    node.run()
-    node.onShutdown()
-    # keep spinning
-    rospy.spin()
+    # Initialize node
+    rospy.init_node('vel_func_node', anonymous=False)
+    rospy.loginfo("Starting node %s" % rospy.get_name())
+
+    # Set hostname based on optional vehicle name
+    if len(sys.argv) != 2:
+        rospy.loginfo(
+            "Vehicle name not passed as a command line argument, expected to be passed as ROS variable")
+        try:
+            hostname = rospy.get_param("~veh")
+        except:
+            raise Exception("ROS parameter '~veh' not found!")
+    else:
+        hostname = sys.argv[1]
+    rospy.loginfo('Hostname: %s' % hostname)
+
+    # Call velocityPublisher
+    try:
+        velocityPublisher(host=hostname)
+    except rospy.ROSInterruptException:
+        raise Exception(
+            "Error encountered when attempting to start vel_func_node velocityPublisher!")
