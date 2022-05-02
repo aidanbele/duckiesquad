@@ -89,10 +89,6 @@ class DaughterControlNode(DTROS):
 
     def processImage(self, image_msg):
         image_size = [120,160]
-        # top_cutoff = 40
-
-        rospy.loginfo("Start processing image")
-
         start_time = time.time()
         try:
             image_cv = bgr_from_jpg(image_msg.data)
@@ -127,10 +123,10 @@ class DaughterControlNode(DTROS):
             if x_arr[0] < 0.35:
                 # object detected close to front of car
                 rospy.loginfo("STOP THE BOT")
-                self.car.publish(self.createCarCmd(0, 0))
+                self.car.publish(self.createCarCmd(0, 1))
             else:
                 # object detected, but its far away
-                self.car.publish(self.createCarCmd(0.5, 0))
+                self.car.publish(self.createCarCmd(0.5, 0.5))
         else:
             # no objects detected
             self.car.publish(self.createCarCmd(0.5, 0))
