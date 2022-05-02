@@ -89,6 +89,10 @@ class DaughterControlNode(DTROS):
 
     def processImage(self, image_msg):
         image_size = [120,160]
+        # top_cutoff = 40
+
+        rospy.loginfo("Start processing image")
+
         start_time = time.time()
         try:
             image_cv = bgr_from_jpg(image_msg.data)
@@ -103,10 +107,10 @@ class DaughterControlNode(DTROS):
             image_cv = cv.resize(image_cv, (image_size[1], image_size[0]), interpolation=cv.INTER_NEAREST)
 
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
-        hsv_obs_red1 = np.array([0,140, 100])
-        hsv_obs_red2 = np.array([15,255,255])
-        hsv_obs_red3 = np.array([165,140, 100]) 
-        hsv_obs_red4 = np.array([180,255,255])
+        hsv_obs_red1 = np.array([0,140, 100]) # Green
+        hsv_obs_red2 = np.array([15,255,255]) # Blue
+        hsv_obs_red3 = np.array([165,140, 100]) # Brown/tan
+        hsv_obs_red4 = np.array([180,255,255]) # Brighter blue
 
         bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
@@ -123,10 +127,10 @@ class DaughterControlNode(DTROS):
             if x_arr[0] < 0.35:
                 # object detected close to front of car
                 rospy.loginfo("STOP THE BOT")
-                self.car.publish(self.createCarCmd(0, 1))
+                self.car.publish(self.createCarCmd(0, 0))
             else:
                 # object detected, but its far away
-                self.car.publish(self.createCarCmd(0.5, 0.5))
+                self.car.publish(self.createCarCmd(0.5, 0))
         else:
             # no objects detected
             self.car.publish(self.createCarCmd(0.5, 0))
