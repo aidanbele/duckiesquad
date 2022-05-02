@@ -38,15 +38,17 @@ class DaughterControlNode(DTROS):
         self.homography = self.load_homography()
 
         # Setup the image subscriber
-        rospy.Subscriber(f"/{self.veh_name}/corrected_image/compressed", CompressedImage, self.processImage, queue_size=1)
+        rospy.Subscriber(f"/{self.veh_name}/camera_node/image/compressed", CompressedImage, self.processImage, queue_size=1)
         
 
     def run(self):
         # change colors randomly every second
-        rate = rospy.Rate(1) # 1Hz
-        #while not rospy.is_shutdown():
-        #    self.set_LEDs()
-        #    rate.sleep()
+        leds_on = ["white", "white", "white", "white", "white"]
+        self.set_LEDs(leds_on)
+        rate = rospy.Rate(0.2) # run once every 5 seconds
+        while not rospy.is_shutdown():
+            rospy.loginfo("ping")
+            rate.sleep()
 
     # homography and computer vision code based off:
     # https://github.com/charan223/charan_ros_core/blob/v1/packages/purepursuit/src/purepursuit_controller_node.py
@@ -63,8 +65,7 @@ class DaughterControlNode(DTROS):
         else:
             rospy.loginfo(f"Using extrinsic calibration of {self.veh_name}")
             data = yaml_load_file(filename)
-        rospy.loginfo(f"Loaded homography for {os.path.basename(filename)}")
-        return np.array(data['homography']).reshape((3,3))
+        return np.array(data[b'homography']).reshape((3,3))
 
     def point2ground(self, x_arr, y_arr, norm_x, norm_y):
         new_x_arr, new_y_arr = [], []
@@ -90,11 +91,13 @@ class DaughterControlNode(DTROS):
         image_size = [120,160]
         # top_cutoff = 40
 
+        rospy.loginfo("Start processing image")
+
         start_time = time.time()
         try:
             image_cv = bgr_from_jpg(image_msg.data)
         except ValueError as e:
-            print("image decode error", e)
+            rospy.loginfo("image decode error", e)
             return
         
         # Resize and crop image
@@ -177,7 +180,7 @@ class DaughterControlNode(DTROS):
 
 if __name__ == '__main__':
     # create the node
-    node = DaughterControlNode(node_name='led_control_node')
+    node = DaughterControlNode(node_name='daughter_control_node')
     # run node
     node.run()
     node.onShutdown()
