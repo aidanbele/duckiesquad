@@ -121,13 +121,22 @@ class DaughterControlNode(DTROS):
             rospy.loginfo('object detected')
             red_area = max(cnts, key=cv.contourArea)
             (xg,yg,wg,hg) = cv.boundingRect(red_area)
-            rospy.loginfo(f"BEFORE X: {[xg, xg+wg]}, BEFORE Y: {[yg+hg, yg+hg]}")
-            x_arr, y_arr = self.point2ground([xg, xg+wg], [yg + hg, yg + hg], image_size[0], image_size[1])
+            #rospy.loginfo(f"BEFORE X: {[xg, xg+wg]}, BEFORE Y: {[yg+hg, yg+hg]}")
+            x_arr, y_arr = self.point2ground([xg, xg+wg], [yg, yg+hg], image_size[0], image_size[1])
             rospy.loginfo(f"BOTTOM OF ROBOT X: {x_arr}, Y : {y_arr}")
-            if x_arr[0] < 0.35:
+            turn = max(min(y_arr[0], 2), -2)
+            if x_arr[0] < 0.15:
                 # object detected close to front of car
-                rospy.loginfo("STOP THE BOT")
-                self.car.publish(self.createCarCmd(0, 0))
+                rospy.loginfo("TURN AROUND THE BOT")
+                self.car.publish(self.createCarCmd(-0.5, turn))
+            elif x_arr[0] < 0.35:
+                # object detected close to front of car
+                rospy.loginfo("TURN THE BOT")
+                self.car.publish(self.createCarCmd(0.3, turn))
+            elif x_arr[0] < 0.9:
+                # object detected close to front of car
+                rospy.loginfo("SLOW TURN THE BOT")
+                self.car.publish(self.createCarCmd(0.4, turn))
             else:
                 # object detected, but its far away
                 self.car.publish(self.createCarCmd(0.5, 0))
