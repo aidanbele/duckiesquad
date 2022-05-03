@@ -6,7 +6,7 @@ import numpy as np
 import cv2 as cv
 import time
 import rospy
-from duckietown.dtros import DTROS, NodeType
+from duckietown.dtros import DTROS
 from duckietown_msgs.msg import LEDPattern
 from duckietown_msgs.srv import SetCustomLEDPattern
 from duckietown_msgs.msg import Twist2DStamped
@@ -26,28 +26,29 @@ class DaughterControlNode(DTROS):
 
     def __init__(self, node_name):
         # initialize the DTROS parent class
-        super(DaughterControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
+        super(DaughterControlNode, self).__init__(node_name=node_name)
         
         self.veh_name = os.environ['VEHICLE_NAME']
-
+        self.homography = self.load_homography()
 
         # Setup the wheel publisher
         car_topic=f"/{self.veh_name}/joy_mapper_node/car_cmd"
         self.car = rospy.Publisher(car_topic, Twist2DStamped, queue_size=1)
 
-        self.homography = self.load_homography()
-
         # Setup the image subscriber
         rospy.Subscriber(f"/{self.veh_name}/camera_node/image/compressed", CompressedImage, self.processImage, queue_size=1)
-        
+
+        # kinematics of car
+        self.v = 0
+        self.omega = 0
 
     def run(self):
         # change colors randomly every second
         leds_on = ["white", "white", "white", "white", "white"]
         self.set_LEDs(leds_on)
-        rate = rospy.Rate(0.2) # run once every 5 seconds
+        rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
-            rospy.loginfo("ping")
+            self.car.publish(self.createCarCmd(self.v, self.omega))
             rate.sleep()
 
     # homography and computer vision code based off:
@@ -107,10 +108,10 @@ class DaughterControlNode(DTROS):
             image_cv = cv.resize(image_cv, (image_size[1], image_size[0]), interpolation=cv.INTER_NEAREST)
 
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
-        hsv_obs_red1 = np.array([0,140, 100]) # Green
-        hsv_obs_red2 = np.array([15,255,255]) # Blue
-        hsv_obs_red3 = np.array([165,140, 100]) # Brown/tan
-        hsv_obs_red4 = np.array([180,255,255]) # Brighter blue
+        hsv_obs_red1 = np.array([0, 140, 100]) # Green
+        hsv_obs_red2 = np.array([15, 255, 255]) # Blue
+        hsv_obs_red3 = np.array([165, 140, 100]) # Brown/tan
+        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue
 
         bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
@@ -124,25 +125,27 @@ class DaughterControlNode(DTROS):
             #rospy.loginfo(f"BEFORE X: {[xg, xg+wg]}, BEFORE Y: {[yg+hg, yg+hg]}")
             x_arr, y_arr = self.point2ground([xg, xg+wg], [yg, yg+hg], image_size[0], image_size[1])
             rospy.loginfo(f"BOTTOM OF ROBOT X: {x_arr}, Y : {y_arr}")
-            turn = max(min(y_arr[0], 2), -2)
+            self.omega = -max(min(y_arr[0], 2), -2)
             if x_arr[0] < 0.15:
                 # object detected close to front of car
-                rospy.loginfo("TURN AROUND THE BOT")
-                self.car.publish(self.createCarCmd(-0.5, turn))
+                rospy.loginfo("REVERSE")
+                self.v = -0.5
             elif x_arr[0] < 0.35:
                 # object detected close to front of car
-                rospy.loginfo("TURN THE BOT")
-                self.car.publish(self.createCarCmd(0.3, turn))
+                rospy.loginfo("SLOWER")
+                self.v = 0.2
             elif x_arr[0] < 0.9:
                 # object detected close to front of car
-                rospy.loginfo("SLOW TURN THE BOT")
-                self.car.publish(self.createCarCmd(0.4, turn))
+                rospy.loginfo("SLOW")
+                self.v = 0.4
             else:
                 # object detected, but its far away
-                self.car.publish(self.createCarCmd(0.5, 0))
+                self.omega = 0
+                self.v = 0.5
         else:
             # no objects detected
-            self.car.publish(self.createCarCmd(0.5, 0))
+            self.omega = 0
+            self.v = 0.5
         rospy.loginfo(f"Time to process: {time.time() - start_time}")
 
     
@@ -164,11 +167,11 @@ class DaughterControlNode(DTROS):
             print (f"LED Service call failed: {e}")
     
 
-    def createCarCmd(self,v,o):
+    def createCarCmd(self, v, omega):
         msg = Twist2DStamped()
         msg.header.stamp = rospy.Time.now()
         msg.v = v
-        msg.omega = o
+        msg.omega = omega
         return msg
 
     
@@ -180,12 +183,12 @@ class DaughterControlNode(DTROS):
         # OTHERWISE YOUR DUCKIEBOT WILL CONTINUE MOVING AFTER
         # THE NODE IS STOPPED
 
+        self.car.publish(self.createCarCmd(0, 0))
+
         leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
         self.set_LEDs(leds_off)
 
-        self.car.publish(self.createCarCmd(0, 0))
-
-        super(DaughterControlNode, self).onShutdown()
+        #super(DaughterControlNode, self).onShutdown()
 
 if __name__ == '__main__':
     # create the node
