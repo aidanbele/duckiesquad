@@ -6,7 +6,7 @@ import numpy as np
 import cv2 as cv
 import time
 import rospy
-from duckietown.dtros import DTROS
+from duckietown.dtros import DTROS, NodeType
 from duckietown_msgs.msg import LEDPattern
 from duckietown_msgs.srv import SetCustomLEDPattern
 from duckietown_msgs.msg import Twist2DStamped
@@ -26,8 +26,9 @@ class DaughterControlNode(DTROS):
 
     def __init__(self, node_name):
         # initialize the DTROS parent class
-        super(DaughterControlNode, self).__init__(node_name=node_name)
+        super(DaughterControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
         
+        rospy.loginfo(os.environ['VEHICLE_NAME'])
         self.veh_name = os.environ['VEHICLE_NAME']
         self.homography = self.load_homography()
 
