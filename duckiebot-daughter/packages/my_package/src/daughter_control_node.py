@@ -42,6 +42,8 @@ class DaughterControlNode(DTROS):
         # kinematics of car
         self.v = 0
         self.omega = 0
+        self.spin_count = 0
+        self.drive_count = 0
 
     def run(self):
         # change colors randomly every second
@@ -108,15 +110,17 @@ class DaughterControlNode(DTROS):
         if image_size[0] != hei_original or image_size[1] != wid_original:
             image_cv = cv.resize(image_cv, (image_size[1], image_size[0]), interpolation=cv.INTER_NEAREST)
 
+        # uses HSV not RGB
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
-        hsv_obs_red1 = np.array([0, 140, 100]) # Green
-        hsv_obs_red2 = np.array([15, 255, 255]) # Blue
-        hsv_obs_red3 = np.array([165, 140, 100]) # Brown/tan
-        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue
+        hsv_obs_red1 = np.array([0, 50, 20])
+        hsv_obs_red2 = np.array([15, 255, 255])
+        hsv_obs_red3 = np.array([165, 50, 20])
+        hsv_obs_red4 = np.array([180, 255, 255])
 
         bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
         bw = cv.bitwise_or(bw1, bw2)
+        cv.imshow(bw) # maybe will display something??????
         cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
 
         if len(cnts)>1:
@@ -126,27 +130,27 @@ class DaughterControlNode(DTROS):
             #rospy.loginfo(f"BEFORE X: {[xg, xg+wg]}, BEFORE Y: {[yg+hg, yg+hg]}")
             x_arr, y_arr = self.point2ground([xg, xg+wg], [yg, yg+hg], image_size[0], image_size[1])
             rospy.loginfo(f"BOTTOM OF ROBOT X: {x_arr}, Y : {y_arr}")
-            self.omega = -max(min(y_arr[0], 2), -2)
-            if x_arr[0] < 0.15:
-                # object detected close to front of car
-                rospy.loginfo("REVERSE")
-                self.v = -0.5
-            elif x_arr[0] < 0.35:
-                # object detected close to front of car
-                rospy.loginfo("SLOWER")
-                self.v = 0.2
-            elif x_arr[0] < 0.9:
-                # object detected close to front of car
-                rospy.loginfo("SLOW")
-                self.v = 0.4
+            self.omega = max(min(y_arr[0], 2), -2)
+            if x_arr[0] < 0.35:
+                # too close to object - stop!
+                self.v = 0
             else:
-                # object detected, but its far away
-                self.omega = 0
+                # object detected - head for object!
                 self.v = 0.5
+            self.spin_count = 0
+            self.drive_count = 0
         else:
-            # no objects detected
-            self.omega = 0
-            self.v = 0.5
+            if self.spin_count > 10 or (self.drive_count > 0 and self.drive_count < 10):
+                self.omega = 0
+                self.v = 1
+                self.spin_count = 0
+                self.drive_count += 1
+            else:
+                # no objects detected - spin and look for objects?
+                self.omega = 3
+                self.v = 0
+                self.spin_count += 1
+                self.drive_count = 0
         rospy.loginfo(f"Time to process: {time.time() - start_time}")
 
     
