@@ -109,15 +109,30 @@ class DaughterControlNode(DTROS):
             image_cv = cv.resize(image_cv, (image_size[1], image_size[0]), interpolation=cv.INTER_NEAREST)
 
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
-        hsv_obs_red1 = np.array([0, 140, 100]) # Green
+        # Red test
+        hsv_obs_red1 = np.array([0,50,20]) # Red
+        hsv_obs_red2 = np.array([5,255,255]) # Red
+        hsv_obs_red3 = np.array([175,50,20]) # Red
+        hsv_obs_red4 = np.array([180,255,255]) # Red
+        
+        # Yellow test
+        """ hsv_obs_red2 = np.array([255,255,204]) # Light yellow1
+        hsv_obs_red1 = np.array([51,51,0]) # Dark yellow4
+        hsv_obs_red4 = np.array([255,255,224]) # lightyellow
+        hsv_obs_red3 = np.array([154,205,50]) # yellowgreen """
+
+        """ hsv_obs_red1 = np.array([0, 140, 100]) # Green
         hsv_obs_red2 = np.array([15, 255, 255]) # Blue
         hsv_obs_red3 = np.array([165, 140, 100]) # Brown/tan
-        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue
+        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue """
 
         bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
         bw = cv.bitwise_or(bw1, bw2)
+        
         cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
+        rospy.loginfo(len(cnts))
+        #rospy.loginfo(cnts)
 
         if len(cnts)>1:
             rospy.loginfo('object detected')
