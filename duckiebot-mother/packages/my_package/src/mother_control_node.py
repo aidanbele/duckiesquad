@@ -22,11 +22,11 @@ from duckietown_utils.yaml_wrap import yaml_load_file
 RANDOM_COLORS = ["green", "red", "blue", "white", "yellow", "purple", "cyan", "pink"]
 bridge = CvBridge()
 
-class DaughterControlNode(DTROS):
+class MotherControlNode(DTROS):
 
     def __init__(self, node_name):
         # initialize the DTROS parent class
-        super(DaughterControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
+        super(MotherControlNode, self).__init__(node_name=node_name, node_type=NodeType.GENERIC)
         
         rospy.loginfo(os.environ['VEHICLE_NAME'])
         self.veh_name = os.environ['VEHICLE_NAME']
@@ -45,7 +45,7 @@ class DaughterControlNode(DTROS):
 
     def run(self):
         # change colors randomly every second
-        leds_on = ["white", "white", "white", "white", "white"]
+        leds_on = ["red", "red", "red", "red", "red"]
         self.set_LEDs(leds_on)
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
@@ -189,11 +189,11 @@ class DaughterControlNode(DTROS):
         leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
         self.set_LEDs(leds_off)
 
-        #super(DaughterControlNode, self).onShutdown()
+        #super(MotherControlNode, self).onShutdown()
 
 if __name__ == '__main__':
     # create the node
-    node = DaughterControlNode(node_name='daughter_control_node')
+    node = MotherControlNode(node_name='daughter_control_node')
     # run node
     node.run()
     node.onShutdown()
