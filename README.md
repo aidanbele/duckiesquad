@@ -5,9 +5,19 @@
 
 Duckiebot-mother acts as the leader, and wanders around
 
+```bash
+cd duckiebot-ros-test
+dts devel build -f -H reggiequackson.local && dts devel run -H reggiequackson.local
+```
+
 ## duckiebot-daughter
 
 Duckiebot-daughter follows the mother around. It would be cool if when the daughter loses the mother it will attempt to find her
+
+```bash
+cd duckiebot-ros-test
+dts devel build -f -H sirquacksalot.local && dts devel run -H sirquacksalot.local
+```
 
 ### manual control on mac
 
