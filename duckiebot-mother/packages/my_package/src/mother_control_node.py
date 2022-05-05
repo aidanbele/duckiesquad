@@ -45,7 +45,7 @@ class MotherControlNode(DTROS):
 
     def run(self):
         # change colors randomly every second
-        leds_on = ["red", "red", "red", "red", "red"]
+        leds_on = ["white", "red", "white", "red", "white"]
         self.set_LEDs(leds_on)
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
