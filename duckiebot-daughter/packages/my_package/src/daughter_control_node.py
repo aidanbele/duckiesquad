@@ -112,16 +112,30 @@ class DaughterControlNode(DTROS):
 
         # uses HSV not RGB
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
+        # Red test
         hsv_obs_red1 = np.array([0, 50, 20])
         hsv_obs_red2 = np.array([15, 255, 255])
         hsv_obs_red3 = np.array([165, 50, 20])
         hsv_obs_red4 = np.array([180, 255, 255])
 
+        # Yellow test
+        """ hsv_obs_red2 = np.array([255,255,204]) # Light yellow1
+        hsv_obs_red1 = np.array([51,51,0]) # Dark yellow4
+        hsv_obs_red4 = np.array([255,255,224]) # lightyellow
+        hsv_obs_red3 = np.array([154,205,50]) # yellowgreen """
+
+        """ hsv_obs_red1 = np.array([0, 140, 100]) # Green
+        hsv_obs_red2 = np.array([15, 255, 255]) # Blue
+        hsv_obs_red3 = np.array([165, 140, 100]) # Brown/tan
+        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue """
+
         bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
         bw = cv.bitwise_or(bw1, bw2)
-        cv.imshow(bw) # maybe will display something??????
         cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
+        #rospy.loginfo(len(cnts))
+        #rospy.loginfo(cnts)
+        cv.imshow(bw) # maybe will display something??????
 
         if len(cnts)>1:
             rospy.loginfo('object detected')
