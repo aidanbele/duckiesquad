@@ -114,7 +114,7 @@ class DaughterControlNode(DTROS):
         hsv_obs_red2 = np.array([5,255,255]) # Red
         hsv_obs_red3 = np.array([175,50,20]) # Red
         hsv_obs_red4 = np.array([180,255,255]) # Red
-        
+
         # Yellow test
         """ hsv_obs_red2 = np.array([255,255,204]) # Light yellow1
         hsv_obs_red1 = np.array([51,51,0]) # Dark yellow4
@@ -131,8 +131,9 @@ class DaughterControlNode(DTROS):
         bw = cv.bitwise_or(bw1, bw2)
         
         cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
-        rospy.loginfo(len(cnts))
+        #rospy.loginfo(len(cnts))
         #rospy.loginfo(cnts)
+        cv.imshow(bw)
 
         if len(cnts)>1:
             rospy.loginfo('object detected')
