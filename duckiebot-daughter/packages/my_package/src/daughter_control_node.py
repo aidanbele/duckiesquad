@@ -132,10 +132,13 @@ class DaughterControlNode(DTROS):
         # uses HSV not RGB
         # hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
         # Red test
-        #hsv_obs_red1 = np.array([0, 50, 20])
-        #hsv_obs_red2 = np.array([15, 255, 255])
-        #hsv_obs_red3 = np.array([165, 50, 20])
-        #hsv_obs_red4 = np.array([180, 255, 255])
+        hsv_obs_red1 = np.array([0, 50, 20]) # red seems to have done worse than yellow
+        hsv_obs_red2 = np.array([15, 255, 255])
+        hsv_obs_red3 = np.array([165, 50, 20])
+        hsv_obs_red4 = np.array([180, 255, 255])
+        bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
+        bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
+        mask = cv.bitwise_or(bw1, bw2)
 
         # Yellow test
         """ hsv_obs_red2 = np.array([255,255,204]) # Light yellow1
@@ -151,7 +154,7 @@ class DaughterControlNode(DTROS):
         #bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
         #bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
         #bw = cv.bitwise_or(bw1, bw2)
-        mask = cv.inRange(hsv, self.yellow_low, self.yellow_high)
+        #mask = cv.inRange(hsv, self.yellow_low, self.yellow_high)
         #cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
         #rospy.loginfo(len(cnts))
         #rospy.loginfo(cnts)
@@ -160,12 +163,12 @@ class DaughterControlNode(DTROS):
         #initalize parameters for blob detector
         #minInertiaRatio is especially important, it filters out the elongated lane segments
         params = cv.SimpleBlobDetector_Params()
-        params.filterByColor = True
+        params.filterByColor = False
         params.blobColor = 255
         params.filterByArea = True
-        params.minArea = 40
+        params.minArea = 20
         params.filterByInertia = True
-        params.minInertiaRatio = 0.5 #if high ratio: only compact blobs are detected, elongated blobs are filtered out
+        params.minInertiaRatio = 0.3 #if high ratio: only compact blobs are detected, elongated blobs are filtered out
         params.filterByConvexity = False
         params.maxConvexity = 0.99
         params.filterByCircularity = False
@@ -180,12 +183,7 @@ class DaughterControlNode(DTROS):
         locs = []
         if keypoints:
             for key in keypoints:
-                duckie_loc_pix = Pixel()
-                duckie_loc_pix.u=key.pt[0]
-                duckie_loc_pix.v=key.pt[1]+key.size/2+float(self.resolution[1])*self.crop_factor #to compensate for crop
-
-                duckie_loc_world = self.pixel2ground(duckie_loc_pix)
-                locs.append(duckie_loc_world)
+                locs.append(key.pt)
         rospy.loginfo(locs)
 
         #    rospy.loginfo('object detected')
