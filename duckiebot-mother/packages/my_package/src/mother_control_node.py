@@ -7,16 +7,19 @@ import cv2 as cv
 import time
 import rospy
 from duckietown.dtros import DTROS, NodeType
-from duckietown_msgs.msg import LEDPattern
+from duckietown_msgs.msg import LEDPattern, Twist2DStamped, Pixel
 from duckietown_msgs.srv import SetCustomLEDPattern
-from duckietown_msgs.msg import Twist2DStamped
 from geometry_msgs.msg import Point
-from sensor_msgs.msg import CompressedImage, Image
+from sensor_msgs.msg import CompressedImage
 from duckietown_utils.jpg import bgr_from_jpg
 from cv_bridge import CvBridge
 
 from duckietown_utils import get_duckiefleet_root
 from duckietown_utils.yaml_wrap import yaml_load_file
+
+# homography and computer vision code based off:
+# https://github.com/charan223/charan_ros_core/blob/v1/packages/purepursuit/src/purepursuit_controller_node.py
+# https://github.com/duckietown-ethz/proj-lfvop/blob/master/packages/dynamic_obstacle_avoidance/src/duckie_detection_node.py
 
 
 RANDOM_COLORS = ["green", "red", "blue", "white", "yellow", "purple", "cyan", "pink"]
@@ -30,14 +33,15 @@ class MotherControlNode(DTROS):
         
         rospy.loginfo(os.environ['VEHICLE_NAME'])
         self.veh_name = os.environ['VEHICLE_NAME']
-        self.homography = self.load_homography()
+        self.H = self.load_homography()
 
         # Setup the wheel publisher
         car_topic=f"/{self.veh_name}/joy_mapper_node/car_cmd"
         self.car = rospy.Publisher(car_topic, Twist2DStamped, queue_size=1)
 
         # Setup the image subscriber
-        rospy.Subscriber(f"/{self.veh_name}/camera_node/image/compressed", CompressedImage, self.processImage, queue_size=1)
+        ing_topic = f"/{self.veh_name}/camera_node/image/compressed"
+        rospy.Subscriber(ing_topic, CompressedImage, callback=self.processImage, queue_size=1)
 
         # kinematics of car
         self.v = 0
@@ -49,7 +53,7 @@ class MotherControlNode(DTROS):
         self.set_LEDs(leds_on)
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
-            #self.car.publish(self.createCarCmd(self.v, self.omega))
+            self.car.publish(self.createCarCmd(self.v, self.omega))
             self.set_LEDs(leds_on)
             rate.sleep()
 
@@ -72,13 +76,12 @@ class MotherControlNode(DTROS):
 
     def point2ground(self, x_arr, y_arr, norm_x, norm_y):
         new_x_arr, new_y_arr = [], []
-        H = self.homography
         for i in range(len(x_arr)):
             u = x_arr[i] * 480/norm_x
             v = y_arr[i] * 640/norm_y
             uv_raw = np.array([u, v])
             uv_raw = np.append(uv_raw, np.array([1]))
-            ground_point = np.dot(H, uv_raw)
+            ground_point = np.dot(self.H, uv_raw)
             point = Point()
             x = ground_point[0]
             y = ground_point[1]
@@ -90,11 +93,24 @@ class MotherControlNode(DTROS):
             new_y_arr.append(point.y)
         return new_x_arr, new_y_arr
 
+    def pixel2ground(self,pixel):
+        uv_raw = np.array([pixel.u, pixel.v])
+        uv_raw = np.append(uv_raw, np.array([1]))
+        ground_point = np.dot(self.H, uv_raw)
+        point = Point()
+        x = ground_point[0]
+        y = ground_point[1]
+        z = ground_point[2]
+        point.x = x/z
+        point.y = y/z
+        point.z = 0.0
+        return point
+
     def processImage(self, image_msg):
         image_size = [120,160]
         # top_cutoff = 40
 
-        rospy.loginfo("Start processing image")
+        #rospy.loginfo("Start processing image")
 
         start_time = time.time()
         try:
@@ -109,15 +125,57 @@ class MotherControlNode(DTROS):
         if image_size[0] != hei_original or image_size[1] != wid_original:
             image_cv = cv.resize(image_cv, (image_size[1], image_size[0]), interpolation=cv.INTER_NEAREST)
 
+        # uses HSV not RGB - we use a bitwise or here because the red color specturm wraps around
         hsv = cv.cvtColor(image_cv, cv.COLOR_BGR2HSV)
-        hsv_obs_red1 = np.array([0, 140, 100]) # Green
-        hsv_obs_red2 = np.array([15, 255, 255]) # Blue
-        hsv_obs_red3 = np.array([165, 140, 100]) # Brown/tan
-        hsv_obs_red4 = np.array([180, 255, 255]) # Brighter blue
+        lower_black = np.array([0, 0, 0])
+        upper_black = np.array([350,55,100])
 
-        bw1 = cv.inRange(hsv, hsv_obs_red1, hsv_obs_red2)
-        bw2 = cv.inRange(hsv, hsv_obs_red3, hsv_obs_red4)
-        bw = cv.bitwise_or(bw1, bw2)
+        mask = cv.inRange(hsv, lower_black, upper_black)
+
+        params = cv.SimpleBlobDetector_Params()
+        params.filterByColor = True
+        params.blobColor = 255
+        params.filterByArea = True
+        params.minArea = 40
+        params.filterByInertia = True
+        params.minInertiaRatio = 0.35 #if high ratio: only compact blobs are detected, elongated blobs are filtered out
+        params.filterByConvexity = False
+        params.maxConvexity = 0.99
+        params.filterByCircularity = False
+        params.minCircularity = 0.5
+        detector = cv.SimpleBlobDetector_create(params)
+
+        # Detect blobs and draw them in image and in mask
+        keypoints = detector.detect(mask)
+
+        locs = []
+        if keypoints:
+            for key in keypoints:
+                locs.append({"x": key.pt[0], "y": key.pt[0], "size": key.size})
+        if len(locs) > 0:
+            largest_loc = locs[0]
+            for loc in locs:
+                if loc["size"] > largest_loc["size"]:
+                    largest_loc = loc
+            rospy.loginfo(f"Found: {len(locs)} locs")
+            rospy.loginfo(largest_loc)
+            self.omega = -max(min((90 - largest_loc["x"]) / 45, 2), -2) # negated so we go away from zones
+            if largest_loc["size"] > 70:
+                self.v = -1
+                self.omega = 0
+            elif largest_loc["size"] > 15:
+                self.v = 0.1
+            elif largest_loc["size"] > 7:
+                self.v = 0.15
+            else:
+                self.v = 0.2
+            
+        else:
+            rospy.loginfo("Nothing found")
+            self.v = 0.25
+
+
+        '''
         cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
 
         if len(cnts)>1:
@@ -131,24 +189,25 @@ class MotherControlNode(DTROS):
             if x_arr[0] < 0.15:
                 # object detected close to front of car
                 rospy.loginfo("REVERSE")
-                self.v = -0.5
+                self.v = -0.1
             elif x_arr[0] < 0.35:
                 # object detected close to front of car
                 rospy.loginfo("SLOWER")
-                self.v = 0.2
+                self.v = 0.15
             elif x_arr[0] < 0.9:
                 # object detected close to front of car
                 rospy.loginfo("SLOW")
-                self.v = 0.4
+                self.v = 0.2
             else:
                 # object detected, but its far away
                 self.omega = 0
-                self.v = 0.5
+                self.v = 0.25
         else:
             # no objects detected
             self.omega = 0
-            self.v = 0.5
+            self.v = 0.25
         rospy.loginfo(f"Time to process: {time.time() - start_time}")
+        '''
 
     
     def set_LEDs(self, color_list=None):
@@ -188,7 +247,7 @@ class MotherControlNode(DTROS):
         self.car.publish(self.createCarCmd(0, 0))
 
         leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
-        #\self.set_LEDs(leds_off)
+        self.set_LEDs(leds_off)
 
         #super(MotherControlNode, self).onShutdown()
 
