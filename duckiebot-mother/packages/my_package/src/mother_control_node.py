@@ -33,7 +33,6 @@ class MotherControlNode(DTROS):
         
         rospy.loginfo(os.environ['VEHICLE_NAME'])
         self.veh_name = os.environ['VEHICLE_NAME']
-        self.H = self.load_homography()
 
         # Setup the wheel publisher
         car_topic=f"/{self.veh_name}/joy_mapper_node/car_cmd"
@@ -57,54 +56,6 @@ class MotherControlNode(DTROS):
             self.set_LEDs(leds_on)
             rate.sleep()
 
-    # homography and computer vision code based off:
-    # https://github.com/charan223/charan_ros_core/blob/v1/packages/purepursuit/src/purepursuit_controller_node.py
-    def load_homography(self):
-        '''Load homography (extrinsic parameters)'''
-        filename = (f"{get_duckiefleet_root()}/calibrations/camera_extrinsic/{self.veh_name}.yaml")
-        if not os.path.isfile(filename):
-            rospy.logwarn(f"no extrinsic calibration parameters for {self.veh_name}, trying default")
-            filename = (f"{get_duckiefleet_root()}/calibrations/camera_extrinsic/default.yaml")
-            if not os.path.isfile(filename):
-                rospy.logerr("can't find default either, something's wrong")
-            else:
-                data = yaml_load_file(filename)
-        else:
-            rospy.loginfo(f"Using extrinsic calibration of {self.veh_name}")
-            data = yaml_load_file(filename)
-        return np.array(data[b'homography']).reshape((3,3))
-
-    def point2ground(self, x_arr, y_arr, norm_x, norm_y):
-        new_x_arr, new_y_arr = [], []
-        for i in range(len(x_arr)):
-            u = x_arr[i] * 480/norm_x
-            v = y_arr[i] * 640/norm_y
-            uv_raw = np.array([u, v])
-            uv_raw = np.append(uv_raw, np.array([1]))
-            ground_point = np.dot(self.H, uv_raw)
-            point = Point()
-            x = ground_point[0]
-            y = ground_point[1]
-            z = ground_point[2]
-            point.x = x/z
-            point.y = y/z
-            point.z = 0.0
-            new_x_arr.append(point.x)
-            new_y_arr.append(point.y)
-        return new_x_arr, new_y_arr
-
-    def pixel2ground(self,pixel):
-        uv_raw = np.array([pixel.u, pixel.v])
-        uv_raw = np.append(uv_raw, np.array([1]))
-        ground_point = np.dot(self.H, uv_raw)
-        point = Point()
-        x = ground_point[0]
-        y = ground_point[1]
-        z = ground_point[2]
-        point.x = x/z
-        point.y = y/z
-        point.z = 0.0
-        return point
 
     def processImage(self, image_msg):
         image_size = [120,160]
@@ -132,83 +83,28 @@ class MotherControlNode(DTROS):
 
         mask = cv.inRange(hsv, lower_black, upper_black)
 
-        params = cv.SimpleBlobDetector_Params()
-        params.filterByColor = True
-        params.blobColor = 255
-        params.filterByArea = True
-        params.minArea = 40
-        params.filterByInertia = True
-        params.minInertiaRatio = 0.35 #if high ratio: only compact blobs are detected, elongated blobs are filtered out
-        params.filterByConvexity = False
-        params.maxConvexity = 0.99
-        params.filterByCircularity = False
-        params.minCircularity = 0.5
-        detector = cv.SimpleBlobDetector_create(params)
+        contours = cv.findContours(mask.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
 
-        # Detect blobs and draw them in image and in mask
-        keypoints = detector.detect(mask)
+        if len(contours)>1:
+            duckie_area = max(contours, key=cv.contourArea)
+            (x,y,w,h) = cv.boundingRect(duckie_area)
+            area = w * h
+            rospy.loginfo(f"X: {[x, x+w]}, Y: {[y, y+h]}, w: {w}, h: {h}, area: {area}")
 
-        locs = []
-        if keypoints:
-            for key in keypoints:
-                locs.append({"x": key.pt[0], "y": key.pt[0], "size": key.size})
-        if len(locs) > 0:
-            largest_loc = locs[0]
-            for loc in locs:
-                if loc["size"] > largest_loc["size"]:
-                    largest_loc = loc
-            rospy.loginfo(f"Found: {len(locs)} locs")
-            rospy.loginfo(largest_loc)
-            self.omega = -max(min((90 - largest_loc["x"]) / 45, 2), -2) # negated so we go away from zones
-            if largest_loc["size"] > 70:
-                self.v = -1
+            if area < 10  or area > 10000 or y < 10:
+                self.v = -0.2
                 self.omega = 0
-            elif largest_loc["size"] > 15:
+                rospy.loginfo("BACKWARDS")
+            elif w / h > 1.5:
                 self.v = 0.1
-            elif largest_loc["size"] > 7:
-                self.v = 0.15
+                self.omega = -2 # always try turning right
+                rospy.loginfo("HARD RIGHT")
             else:
                 self.v = 0.2
-            
+                self.omega = -max(min((90 - ((2 * x + w) / 2)) / 20, 2), -2) # steer in opposite direction of blob
+                rospy.loginfo(f"SLOW, omega: {self.omega}")
         else:
-            rospy.loginfo("Nothing found")
-            self.v = 0.25
-
-
-        '''
-        cnts = cv.findContours(bw.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)[-2]
-
-        if len(cnts)>1:
-            rospy.loginfo('object detected')
-            red_area = max(cnts, key=cv.contourArea)
-            (xg,yg,wg,hg) = cv.boundingRect(red_area)
-            #rospy.loginfo(f"BEFORE X: {[xg, xg+wg]}, BEFORE Y: {[yg+hg, yg+hg]}")
-            x_arr, y_arr = self.point2ground([xg, xg+wg], [yg, yg+hg], image_size[0], image_size[1])
-            rospy.loginfo(f"BOTTOM OF ROBOT X: {x_arr}, Y : {y_arr}")
-            self.omega = -max(min(y_arr[0], 2), -2)
-            if x_arr[0] < 0.15:
-                # object detected close to front of car
-                rospy.loginfo("REVERSE")
-                self.v = -0.1
-            elif x_arr[0] < 0.35:
-                # object detected close to front of car
-                rospy.loginfo("SLOWER")
-                self.v = 0.15
-            elif x_arr[0] < 0.9:
-                # object detected close to front of car
-                rospy.loginfo("SLOW")
-                self.v = 0.2
-            else:
-                # object detected, but its far away
-                self.omega = 0
-                self.v = 0.25
-        else:
-            # no objects detected
-            self.omega = 0
-            self.v = 0.25
-        rospy.loginfo(f"Time to process: {time.time() - start_time}")
-        '''
-
+            rospy.loginfo(f"FOUND NOTHING, MAINTING. v: f{self.v}, omega: {self.omega}")
     
     def set_LEDs(self, color_list=None):
         led_service = f"/{self.veh_name}/led_emitter_node/set_custom_pattern"
