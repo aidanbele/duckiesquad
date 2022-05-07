@@ -45,11 +45,12 @@ class MotherControlNode(DTROS):
 
     def run(self):
         # change colors randomly every second
-        leds_on = ["white", "red", "white", "red", "white"]
+        leds_on = ["green", "green", "green", "green", "green"]
         self.set_LEDs(leds_on)
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
-            self.car.publish(self.createCarCmd(self.v, self.omega))
+            #self.car.publish(self.createCarCmd(self.v, self.omega))
+            self.set_LEDs(leds_on)
             rate.sleep()
 
     # homography and computer vision code based off:
@@ -187,7 +188,7 @@ class MotherControlNode(DTROS):
         self.car.publish(self.createCarCmd(0, 0))
 
         leds_off = ["switchedoff", "switchedoff", "switchedoff", "switchedoff", "switchedoff"]
-        self.set_LEDs(leds_off)
+        #\self.set_LEDs(leds_off)
 
         #super(MotherControlNode, self).onShutdown()
 
