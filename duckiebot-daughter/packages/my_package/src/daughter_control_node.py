@@ -52,7 +52,8 @@ class DaughterControlNode(DTROS):
     def run(self):
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
-            self.car.publish(self.createCarCmd(self.v, self.omega))
+            # multiply speed by 1.2 so it runs better on carpet
+            self.car.publish(self.createCarCmd(self.v * 1.2, self.omega))
             if self.leds != self.prev_leds:
                 self.set_LEDs(self.leds)
                 self.prev_leds = self.leds
@@ -93,15 +94,15 @@ class DaughterControlNode(DTROS):
                 self.leds = ["white", "purple", "white", "purple", "white"]
                 rospy.loginfo(f"STOPPING: {self.omega}")
             elif area > 75: # 400 would be good for no delay
-                self.v = 0.1
+                self.v = 0.15
                 rospy.loginfo(f"SLOWING, CLOSE: {self.omega}")
                 self.leds = ["white", "pink", "white", "pink", "white"]
             elif area > 10: # 75 would be good for no delay
-                self.v = 0.15
+                self.v = 0.2
                 rospy.loginfo(f"SLOW: {self.omega}")
                 self.leds = ["white", "red", "white", "red", "white"]
             else:
-                self.v = 0.2
+                self.v = 0.25
                 rospy.loginfo(f"FAR AWAY: {self.omega}")
         elif self.unseen_count > 10:
             self.unseen_count = 0

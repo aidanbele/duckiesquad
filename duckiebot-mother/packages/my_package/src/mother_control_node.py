@@ -7,15 +7,11 @@ import cv2 as cv
 import time
 import rospy
 from duckietown.dtros import DTROS, NodeType
-from duckietown_msgs.msg import LEDPattern, Twist2DStamped, Pixel
+from duckietown_msgs.msg import LEDPattern, Twist2DStamped
 from duckietown_msgs.srv import SetCustomLEDPattern
-from geometry_msgs.msg import Point
 from sensor_msgs.msg import CompressedImage
 from duckietown_utils.jpg import bgr_from_jpg
 from cv_bridge import CvBridge
-
-from duckietown_utils import get_duckiefleet_root
-from duckietown_utils.yaml_wrap import yaml_load_file
 
 # homography and computer vision code based off:
 # https://github.com/charan223/charan_ros_core/blob/v1/packages/purepursuit/src/purepursuit_controller_node.py
@@ -52,7 +48,8 @@ class MotherControlNode(DTROS):
         self.set_LEDs(leds_on)
         rate = rospy.Rate(2) # run twice every second
         while not rospy.is_shutdown():
-            self.car.publish(self.createCarCmd(self.v, self.omega))
+            # multiply speed times 1.7 because it runs a bit better on carpet at this speed
+            self.car.publish(self.createCarCmd(self.v * 1.7, self.omega))
             self.set_LEDs(leds_on)
             rate.sleep()
 
@@ -91,13 +88,13 @@ class MotherControlNode(DTROS):
             area = w * h
             rospy.loginfo(f"X: {[x, x+w]}, Y: {[y, y+h]}, w: {w}, h: {h}, area: {area}")
 
-            if area < 10  or area > 10000 or y < 10:
+            if area < 10 or area > 10000 or y < 10:
                 self.v = -0.2
                 self.omega = 0
                 rospy.loginfo("BACKWARDS")
             elif w / h > 1.5:
                 self.v = 0.1
-                self.omega = -2 # always try turning right
+                self.omega = -3 # always try turning right
                 rospy.loginfo("HARD RIGHT")
             else:
                 self.v = 0.2
